@@ -57,6 +57,9 @@ public class GameGUI extends JFrame {
     private DefaultListModel<Player> rankingListModel; // 改為Player型別
     private JList<Player> rankingList; // 改為Player型別
     private JProgressBar xpBar;      // Progress bar for XP
+    
+    // 追蹤當前顯示的面板
+    private String currentPanelName = "Login"; // 預設為登入面板
 
     // Fields for login panel components that need to be accessed by LoginWorker
     private JTextField usernameField;
@@ -538,9 +541,8 @@ public class GameGUI extends JFrame {
             
             List<Card> newCards = gameController.drawMultiple(10);
             for (Card card : newCards) {
-                if (currentPlayer != null) { // Fix: Check if currentPlayer is not null
+                if (currentPlayer != null) // Fix: Check if currentPlayer is not null
                     recordService.saveCardToDeck(currentPlayer.getUsername(), card); // Fix: Use currentPlayer.getUsername()
-                }
             }
             updateCardButtons();
             showDrawCardPanel();
@@ -1036,11 +1038,13 @@ public class GameGUI extends JFrame {
     }
 
     private void showLoginPanel() {
+        currentPanelName = "Login";
         CardLayout layout = (CardLayout) mainPanel.getLayout();
         layout.show(mainPanel, "Login");
     }
 
     private void showLobbyPanel() {
+        currentPanelName = "Lobby";
         // Rebuild lobby panel to reflect current user and admin rights
         lobbyPanel.removeAll();
         initializeLobbyPanel();
@@ -1049,6 +1053,7 @@ public class GameGUI extends JFrame {
     }
 
     private void showDrawOptionsPanel() {
+        currentPanelName = "DrawOptions";
         CardLayout layout = (CardLayout) mainPanel.getLayout();
         layout.show(mainPanel, "DrawOptions");
     }    private void showDrawCardPanel() {
@@ -1139,6 +1144,7 @@ public class GameGUI extends JFrame {
         drawCardPanel.add(buttonPanel, BorderLayout.SOUTH);
         
         // 顯示面板
+        currentPanelName = "DrawCard";
         CardLayout layout = (CardLayout) mainPanel.getLayout();
         layout.show(mainPanel, "DrawCard");
     }
@@ -1167,6 +1173,7 @@ public class GameGUI extends JFrame {
     }
 
     private void showBattlePanel() {
+        currentPanelName = "Battle";
         // 更新玩家手牌顯示，並重置戰鬥區域
         updateCardButtons();
         gameLog.setText("");
@@ -1260,6 +1267,7 @@ public class GameGUI extends JFrame {
         btnPanel.add(back);
         selectionPanel.add(btnPanel, BorderLayout.SOUTH);
         
+        // 重新驗證和繪製
         selectionPanel.revalidate();
         selectionPanel.repaint();
     }
@@ -1557,6 +1565,7 @@ public class GameGUI extends JFrame {
     }
 
     private void showRankingPanel() {
+        currentPanelName = "Ranking";
         CardLayout layout = (CardLayout) mainPanel.getLayout();
         layout.show(mainPanel, "Ranking");
     }
@@ -1903,9 +1912,52 @@ public class GameGUI extends JFrame {
         selectionPanel.repaint();
         
         // 最後才切換到選擇面板
+        currentPanelName = "SelectBattleCards";
         CardLayout layout = (CardLayout) mainPanel.getLayout();
         layout.show(mainPanel, "SelectBattleCards");
     }
+
+    /**
+     * 測試主題切換是否立即生效的方法
+     */
+    private void testThemeChange() {
+        // 创建一个简单的测试面板来验证主题是否立即生效
+        JPanel testPanel = new JPanel();
+        testPanel.setLayout(new FlowLayout());
+        
+        JLabel testLabel = new JLabel("主題測試標籤");
+        JButton testButton = new JButton("測試按鈕");
+        
+        testPanel.add(testLabel);
+        testPanel.add(testButton);
+        
+        // 添加到主窗口
+        getContentPane().add(testPanel, BorderLayout.SOUTH);
+        
+        // 立即重绘测试
+        testPanel.revalidate();
+        testPanel.repaint();
+    }
+    
+    /**
+     * 驗證主題是否已正確應用到所有組件
+     */
+    private boolean verifyThemeApplication() {
+        // 检查关键UI组件是否应用了正确的主题颜色
+        Color expectedBgColor = isDarkTheme ? 
+            new Color(33, 37, 43) : new Color(248, 248, 252);
+        
+        boolean mainPanelCorrect = mainPanel.getBackground().equals(expectedBgColor);
+        boolean loginPanelCorrect = loginPanel.getBackground().equals(expectedBgColor);
+        
+        System.out.println("主面板背景色正確: " + mainPanelCorrect);
+        System.out.println("登入面板背景色正確: " + loginPanelCorrect);
+        System.out.println("預期背景色: " + expectedBgColor);
+        System.out.println("主面板實際背景色: " + mainPanel.getBackground());
+        
+        return mainPanelCorrect && loginPanelCorrect;
+    }
+
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -2022,7 +2074,9 @@ public class GameGUI extends JFrame {
         
         // 默認使用明亮主題，但不在這裡設置selected狀態，而是在applyTheme中設置
         JRadioButtonMenuItem lightTheme = new JRadioButtonMenuItem("明亮主題");
+        lightTheme.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK));
         JRadioButtonMenuItem darkTheme = new JRadioButtonMenuItem("暗黑主題");
+        darkTheme.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK));
         
         ButtonGroup themeGroup = new ButtonGroup();
         themeGroup.add(lightTheme);
@@ -2030,16 +2084,22 @@ public class GameGUI extends JFrame {
         
         // 只設置事件監聽器，不重複調用showThemeChangeNotification
         lightTheme.addActionListener(e -> {
-            if (lightTheme.isSelected()) { // 避免重複觸發
-                System.out.println("明亮主題按鈕點擊");
+            System.out.println("明亮主題按鈕點擊");
+            // 確保在事件調度線程中立即執行
+            if (SwingUtilities.isEventDispatchThread()) {
                 applyTheme("light");
+            } else {
+                SwingUtilities.invokeLater(() -> applyTheme("light"));
             }
         });
         
         darkTheme.addActionListener(e -> {
-            if (darkTheme.isSelected()) { // 避免重複觸發
-                System.out.println("暗黑主題按鈕點擊");
+            System.out.println("暗黑主題按鈕點擊");
+            // 確保在事件調度線程中立即執行
+            if (SwingUtilities.isEventDispatchThread()) {
                 applyTheme("dark");
+            } else {
+                SwingUtilities.invokeLater(() -> applyTheme("dark"));
             }
         });
         
@@ -2275,197 +2335,358 @@ public class GameGUI extends JFrame {
     
     /**
      * 應用主題設置
-     */    private void applyTheme(String themeName) {
+     */    
+    private void applyTheme(String themeName) {
         System.out.println("切換主題到: " + themeName);
+        long startTime = System.currentTimeMillis();
         
         // 更新主題狀態變數
         isDarkTheme = "dark".equals(themeName);
         System.out.println("isDarkTheme設置為: " + isDarkTheme);
         
+        // 定義主題顏色
+        Color bgColor, textColor, buttonBgColor, accentColor, fieldBgColor;
+        
         if ("dark".equals(themeName)) {
             // 設定暗黑主題顏色 - 使用更柔和的深色調，提高對比度
-            Color bgColor = new Color(33, 37, 43);          // 較柔和的深藍灰色背景
-            Color textColor = new Color(238, 238, 238);     // 近白色文字，提高可讀性
-            Color buttonBgColor = new Color(59, 66, 82);    // 按鈕背景色，與主背景區分
-            Color accentColor = new Color(106, 127, 219);   // 強調色（用於高亮、邊框）
-            Color fieldBgColor = new Color(45, 49, 58);     // 文本輸入區背景色
-            
-            // 設置主要UI屬性
-            UIManager.put("Panel.background", bgColor);
-            UIManager.put("OptionPane.background", bgColor);
-            UIManager.put("OptionPane.messageForeground", textColor);
-            
-            // 文字和標籤
-            UIManager.put("Label.foreground", textColor);
-            UIManager.put("Label.background", bgColor);
-            
-            // 按鈕相關
-            UIManager.put("Button.background", buttonBgColor);
-            UIManager.put("Button.foreground", textColor);
-            UIManager.put("Button.select", accentColor);
-            UIManager.put("Button.focus", accentColor);
-            UIManager.put("Button.border", BorderFactory.createLineBorder(accentColor.darker(), 1));
-            
-            // 文字輸入區域
-            UIManager.put("TextField.background", fieldBgColor);
-            UIManager.put("TextField.foreground", textColor);
-            UIManager.put("TextField.caretForeground", textColor);
-            UIManager.put("TextField.selectionBackground", accentColor);
-            
-            UIManager.put("TextArea.background", fieldBgColor);
-            UIManager.put("TextArea.foreground", textColor);
-            UIManager.put("TextArea.caretForeground", textColor);
-            UIManager.put("TextArea.selectionBackground", accentColor);
-            
-            // 列表相關
-            UIManager.put("List.background", fieldBgColor);
-            UIManager.put("List.foreground", textColor);
-            UIManager.put("List.selectionBackground", accentColor);
-            UIManager.put("List.selectionForeground", Color.WHITE);
-            
-            // 設置菜單顏色
-            UIManager.put("MenuBar.background", buttonBgColor);
-            UIManager.put("MenuBar.foreground", textColor);
-            UIManager.put("Menu.background", buttonBgColor);
-            UIManager.put("Menu.foreground", textColor);
-            UIManager.put("Menu.selectionBackground", accentColor);
-            UIManager.put("Menu.selectionForeground", Color.WHITE);
-            
-            UIManager.put("MenuItem.background", buttonBgColor);
-            UIManager.put("MenuItem.foreground", textColor);
-            UIManager.put("MenuItem.selectionBackground", accentColor);
-            UIManager.put("MenuItem.selectionForeground", Color.WHITE);
-            UIManager.put("MenuItem.acceleratorForeground", textColor);
-            
-            // RadioButtonMenuItem相關
-            UIManager.put("RadioButtonMenuItem.background", buttonBgColor);
-            UIManager.put("RadioButtonMenuItem.foreground", textColor);
-            UIManager.put("RadioButtonMenuItem.selectionBackground", accentColor);
-            UIManager.put("RadioButtonMenuItem.selectionForeground", Color.WHITE);
-            UIManager.put("RadioButtonMenuItem.acceleratorForeground", textColor);
-            
-            // 捲動條
-            UIManager.put("ScrollBar.background", bgColor);
-            UIManager.put("ScrollBar.thumb", buttonBgColor);
-            UIManager.put("ScrollBar.thumbDarkShadow", bgColor.darker());
-            UIManager.put("ScrollBar.thumbHighlight", buttonBgColor.brighter());
-            UIManager.put("ScrollBar.thumbShadow", buttonBgColor.darker());
-            UIManager.put("ScrollBar.track", bgColor);
-            
-            // 下拉選單
-            UIManager.put("ComboBox.background", fieldBgColor);
-            UIManager.put("ComboBox.foreground", textColor);
-            UIManager.put("ComboBox.selectionBackground", accentColor);
-            UIManager.put("ComboBox.selectionForeground", Color.WHITE);
-            
-            // 表格
-            UIManager.put("Table.background", fieldBgColor);
-            UIManager.put("Table.foreground", textColor);
-            UIManager.put("Table.selectionBackground", accentColor);
-            UIManager.put("Table.selectionForeground", Color.WHITE);
-            UIManager.put("Table.gridColor", bgColor.brighter());
-            
-            // 子標題
-            UIManager.put("TitledBorder.titleColor", textColor);
-            
+            bgColor = new Color(33, 37, 43);          // 較柔和的深藍灰色背景
+            textColor = new Color(238, 238, 238);     // 近白色文字，提高可讀性
+            buttonBgColor = new Color(59, 66, 82);    // 按鈕背景色，與主背景區分
+            accentColor = new Color(106, 127, 219);   // 強調色（用於高亮、邊框）
+            fieldBgColor = new Color(45, 49, 58);     // 文本輸入區背景色
         } else {
             // 設定明亮主題 - 溫暖柔和的配色
-            Color bgColor = new Color(248, 248, 252);       // 淡藍灰色背景，不刺眼
-            Color textColor = new Color(33, 33, 33);        // 深灰近黑色文字，提高可讀性
-            Color buttonBgColor = new Color(210, 230, 255); // 淡藍色按鈕背景
-            Color accentColor = new Color(70, 105, 210);    // 藍色強調色
-            Color fieldBgColor = new Color(255, 255, 255);  // 純白色輸入區背景
-            
-            // 設置主要UI屬性
-            UIManager.put("Panel.background", bgColor);
-            UIManager.put("OptionPane.background", bgColor);
-            UIManager.put("OptionPane.messageForeground", textColor);
-            
-            // 文字和標籤
-            UIManager.put("Label.foreground", textColor);
-            UIManager.put("Label.background", bgColor);
-            
-            // 按鈕相關
-            UIManager.put("Button.background", buttonBgColor);
-            UIManager.put("Button.foreground", textColor.darker());
-            UIManager.put("Button.select", accentColor);
-            UIManager.put("Button.focus", accentColor);
-            UIManager.put("Button.border", BorderFactory.createLineBorder(accentColor, 1));
-            
-            // 文字輸入區域
-            UIManager.put("TextField.background", fieldBgColor);
-            UIManager.put("TextField.foreground", textColor);
-            UIManager.put("TextField.caretForeground", textColor);
-            UIManager.put("TextField.selectionBackground", accentColor.brighter());
-            
-            UIManager.put("TextArea.background", fieldBgColor);
-            UIManager.put("TextArea.foreground", textColor);
-            UIManager.put("TextArea.caretForeground", textColor);
-            UIManager.put("TextArea.selectionBackground", accentColor.brighter());
-            
-            // 列表相關
-            UIManager.put("List.background", fieldBgColor);
-            UIManager.put("List.foreground", textColor);
-            UIManager.put("List.selectionBackground", accentColor.brighter());
-            UIManager.put("List.selectionForeground", Color.BLACK);
-            
-            // 設置菜單顏色
-            UIManager.put("MenuBar.background", buttonBgColor);
-            UIManager.put("MenuBar.foreground", textColor);
-            UIManager.put("Menu.background", buttonBgColor);
-            UIManager.put("Menu.foreground", textColor);
-            UIManager.put("Menu.selectionBackground", accentColor.brighter());
-            UIManager.put("Menu.selectionForeground", Color.BLACK);
-            
-            UIManager.put("MenuItem.background", buttonBgColor);
-            UIManager.put("MenuItem.foreground", textColor);
-            UIManager.put("MenuItem.selectionBackground", accentColor.brighter());
-            UIManager.put("MenuItem.selectionForeground", Color.BLACK);
-            UIManager.put("MenuItem.acceleratorForeground", textColor);
-            
-            // RadioButtonMenuItem相關
-            UIManager.put("RadioButtonMenuItem.background", buttonBgColor);
-            UIManager.put("RadioButtonMenuItem.foreground", textColor);
-            UIManager.put("RadioButtonMenuItem.selectionBackground", accentColor.brighter());
-            UIManager.put("RadioButtonMenuItem.selectionForeground", Color.BLACK);
-            UIManager.put("RadioButtonMenuItem.acceleratorForeground", textColor);
-            
-            // 捲動條
-            UIManager.put("ScrollBar.background", bgColor);
-            UIManager.put("ScrollBar.thumb", buttonBgColor);
-            UIManager.put("ScrollBar.thumbDarkShadow", bgColor.darker());
-            UIManager.put("ScrollBar.thumbHighlight", buttonBgColor.brighter());
-            UIManager.put("ScrollBar.thumbShadow", buttonBgColor.darker());
-            UIManager.put("ScrollBar.track", bgColor);
-            
-            // 下拉選單
-            UIManager.put("ComboBox.background", fieldBgColor);
-            UIManager.put("ComboBox.foreground", textColor);
-            UIManager.put("ComboBox.selectionBackground", accentColor.brighter());
-            UIManager.put("ComboBox.selectionForeground", Color.BLACK);
-            
-            // 表格
-            UIManager.put("Table.background", fieldBgColor);
-            UIManager.put("Table.foreground", textColor);
-            UIManager.put("Table.selectionBackground", accentColor.brighter());
-            UIManager.put("Table.selectionForeground", Color.BLACK);
-            UIManager.put("Table.gridColor", bgColor.darker());
-            
-            // 子標題
-            UIManager.put("TitledBorder.titleColor", textColor);
+            bgColor = new Color(248, 248, 252);       // 淡藍灰色背景，不刺眼
+            textColor = new Color(33, 33, 33);        // 深灰近黑色文字，提高可讀性
+            buttonBgColor = new Color(210, 230, 255); // 淡藍色按鈕背景
+            accentColor = new Color(70, 105, 210);    // 藍色強調色
+            fieldBgColor = new Color(255, 255, 255);  // 純白色輸入區背景
         }
+        
+        // 設置UIManager屬性
+        setUIManagerColors(bgColor, textColor, buttonBgColor, accentColor, fieldBgColor);
         
         // 設置自訂字體 - 在兩個主題下統一設置
         setUIFont(new FontUIResource("Microsoft JhengHei UI", Font.PLAIN, 12));
-          
-        // 更新所有組件
+        
+        // 立即更新所有UI組件
+        System.out.println("開始更新UI組件樹...");
         SwingUtilities.updateComponentTreeUI(this);
         
-        // 更新菜單中的主題選擇狀態 - 在更新UI之後執行
+        // 直接設置所有主要面板的背景顏色
+        System.out.println("直接設置面板背景顏色...");
+        setDirectPanelColors(bgColor, textColor);
+        
+        // 強制重新繪製所有組件
+        System.out.println("開始重繪所有組件...");
+        repaintAllComponents(this);
+        
+        // 刷新當前顯示的面板以立即應用主題
+        System.out.println("刷新當前面板...");
+        refreshCurrentPanel();
+        
+        // 強制重新驗證和重繪整個窗口
+        System.out.println("強制窗口重新驗證和重繪...");
+        this.invalidate();
+        this.validate();
+        this.repaint();
+        
+        // 更新菜單中的主題選擇狀態
+        System.out.println("更新菜單狀態...");
         updateThemeMenuSelection(themeName);
         
         // 最後顯示通知
+        System.out.println("顯示主題切換通知...");
         showThemeChangeNotification(themeName);
+        
+        // 驗證主題是否正確應用
+        System.out.println("驗證主題應用...");
+        boolean themeApplied = verifyThemeApplication();
+        
+        long endTime = System.currentTimeMillis();
+        System.out.println("主題切換完成，耗時: " + (endTime - startTime) + "ms");
+        System.out.println("主題應用驗證結果: " + (themeApplied ? "成功" : "失敗"));
+    }
+    
+    /**
+     * 設置UIManager的所有顏色屬性
+     */
+    private void setUIManagerColors(Color bgColor, Color textColor, Color buttonBgColor, Color accentColor, Color fieldBgColor) {
+        // 設置主要UI屬性
+        UIManager.put("Panel.background", bgColor);
+        UIManager.put("OptionPane.background", bgColor);
+        UIManager.put("OptionPane.messageForeground", textColor);
+        
+        // 文字和標籤
+        UIManager.put("Label.foreground", textColor);
+        UIManager.put("Label.background", bgColor);
+        
+        // 按鈕相關
+        UIManager.put("Button.background", buttonBgColor);
+        UIManager.put("Button.foreground", textColor);
+        UIManager.put("Button.select", accentColor);
+        UIManager.put("Button.focus", accentColor);
+        UIManager.put("Button.border", BorderFactory.createLineBorder(accentColor.darker(), 1));
+        
+        // 文字輸入區域
+        UIManager.put("TextField.background", fieldBgColor);
+        UIManager.put("TextField.foreground", textColor);
+        UIManager.put("TextField.caretForeground", textColor);
+        UIManager.put("TextField.selectionBackground", accentColor);
+        
+        UIManager.put("TextArea.background", fieldBgColor);
+        UIManager.put("TextArea.foreground", textColor);
+        UIManager.put("TextArea.caretForeground", textColor);
+        UIManager.put("TextArea.selectionBackground", accentColor);
+        
+        // 列表相關
+        UIManager.put("List.background", fieldBgColor);
+        UIManager.put("List.foreground", textColor);
+        UIManager.put("List.selectionBackground", accentColor);
+        UIManager.put("List.selectionForeground", isDarkTheme ? Color.WHITE : Color.BLACK);
+        
+        // 設置菜單顏色
+        UIManager.put("MenuBar.background", buttonBgColor);
+        UIManager.put("MenuBar.foreground", textColor);
+        UIManager.put("Menu.background", buttonBgColor);
+        UIManager.put("Menu.foreground", textColor);
+        UIManager.put("Menu.selectionBackground", accentColor);
+        UIManager.put("Menu.selectionForeground", isDarkTheme ? Color.WHITE : Color.BLACK);
+        
+        UIManager.put("MenuItem.background", buttonBgColor);
+        UIManager.put("MenuItem.foreground", textColor);
+        UIManager.put("MenuItem.selectionBackground", accentColor);
+        UIManager.put("MenuItem.selectionForeground", isDarkTheme ? Color.WHITE : Color.BLACK);
+        UIManager.put("MenuItem.acceleratorForeground", textColor);
+        
+        // RadioButtonMenuItem相關
+        UIManager.put("RadioButtonMenuItem.background", buttonBgColor);
+        UIManager.put("RadioButtonMenuItem.foreground", textColor);
+        UIManager.put("RadioButtonMenuItem.selectionBackground", accentColor);
+        UIManager.put("RadioButtonMenuItem.selectionForeground", isDarkTheme ? Color.WHITE : Color.BLACK);
+        UIManager.put("RadioButtonMenuItem.acceleratorForeground", textColor);
+        
+        // 捲動條
+        UIManager.put("ScrollBar.background", bgColor);
+        UIManager.put("ScrollBar.thumb", buttonBgColor);
+        UIManager.put("ScrollBar.thumbDarkShadow", bgColor.darker());
+        UIManager.put("ScrollBar.thumbHighlight", buttonBgColor.brighter());
+        UIManager.put("ScrollBar.thumbShadow", buttonBgColor.darker());
+        UIManager.put("ScrollBar.track", bgColor);
+        
+        // 下拉選單
+        UIManager.put("ComboBox.background", fieldBgColor);
+        UIManager.put("ComboBox.foreground", textColor);
+        UIManager.put("ComboBox.selectionBackground", accentColor);
+        UIManager.put("ComboBox.selectionForeground", isDarkTheme ? Color.WHITE : Color.BLACK);
+        
+        // 表格
+        UIManager.put("Table.background", fieldBgColor);
+        UIManager.put("Table.foreground", textColor);
+        UIManager.put("Table.selectionBackground", accentColor);
+        UIManager.put("Table.selectionForeground", isDarkTheme ? Color.WHITE : Color.BLACK);
+        UIManager.put("Table.gridColor", bgColor.brighter());
+        
+        // 子標題
+        UIManager.put("TitledBorder.titleColor", textColor);
+    }
+    
+    /**
+     * 直接設置所有主要面板的背景顏色，確保立即生效
+     */
+    private void setDirectPanelColors(Color bgColor, Color textColor) {
+        // 設置主窗口背景
+        getContentPane().setBackground(bgColor);
+        
+        // 設置主面板背景
+        if (mainPanel != null) {
+            mainPanel.setBackground(bgColor);
+        }
+        
+        // 設置所有已知面板的背景顏色
+        JPanel[] panels = {loginPanel, lobbyPanel, drawOptionsPanel, drawCardPanel, 
+                          battlePanel, selectionPanel, rankingPanel};
+        
+        for (JPanel panel : panels) {
+            if (panel != null) {
+                setComponentColors(panel, bgColor, textColor);
+            }
+        }
+    }
+    
+    /**
+     * 遞歸設置組件及其子組件的顏色
+     */
+    private void setComponentColors(Container container, Color bgColor, Color textColor) {
+        if (container == null) return;
+        
+        // 設置容器背景色
+        container.setBackground(bgColor);
+        
+        // 遞歸處理所有子組件
+        Component[] components = container.getComponents();
+        for (Component component : components) {
+            if (component instanceof JPanel) {
+                setComponentColors((JPanel) component, bgColor, textColor);
+            } else if (component instanceof JLabel) {
+                component.setForeground(textColor);
+                component.setBackground(bgColor);
+            } else if (component instanceof Container) {
+                setComponentColors((Container) component, bgColor, textColor);
+            }
+        }
+    }
+    
+    /**
+     * 遞歸重新繪製所有組件，確保主題立即生效
+     */
+    private void repaintAllComponents(Container container) {
+        System.out.println("重繪容器: " + container.getClass().getSimpleName());
+        
+        // 首先更新當前容器的組件樹UI
+        SwingUtilities.updateComponentTreeUI(container);
+        
+        // 重新驗證和重繪當前容器
+        container.invalidate();
+        container.validate();
+        container.repaint();
+        
+        // 遞歸處理所有子組件
+        Component[] components = container.getComponents();
+        System.out.println("處理 " + components.length + " 個子組件");
+        
+        for (Component component : components) {
+            if (component instanceof Container) {
+                repaintAllComponents((Container) component);
+            } else {
+                // 對於非容器組件，也要更新其UI
+                SwingUtilities.updateComponentTreeUI(component);
+                component.invalidate();
+                component.repaint();
+            }
+        }
+        
+        // 特別處理 JFrame 的內容面板
+        if (container instanceof JFrame) {
+            System.out.println("特別處理JFrame組件");
+            JFrame frame = (JFrame) container;
+            if (frame.getContentPane() != null) {
+                System.out.println("更新內容面板");
+                SwingUtilities.updateComponentTreeUI(frame.getContentPane());
+                frame.getContentPane().invalidate();
+                frame.getContentPane().validate();
+                frame.getContentPane().repaint();
+            }
+            
+            // 更新菜單欄
+            if (frame.getJMenuBar() != null) {
+                System.out.println("更新菜單欄");
+                SwingUtilities.updateComponentTreeUI(frame.getJMenuBar());
+                frame.getJMenuBar().invalidate();
+                frame.getJMenuBar().validate();
+                frame.getJMenuBar().repaint();
+            }
+            
+            // 強制整個框架重新繪製
+            System.out.println("強制整個框架重新繪製");
+            frame.invalidate();
+            frame.validate();
+            frame.repaint();
+        }
+        
+        // 特別處理主面板及其所有子面板
+        if (container == this) {
+            // 更新主面板
+            if (mainPanel != null) {
+                SwingUtilities.updateComponentTreeUI(mainPanel);
+                mainPanel.invalidate();
+                mainPanel.validate();
+                mainPanel.repaint();
+            }
+            
+            // 更新所有已創建的面板
+            updateAllKnownPanels();
+        }
+    }
+    
+    /**
+     * 更新所有已知的面板
+     */
+    private void updateAllKnownPanels() {
+        JPanel[] panels = {loginPanel, lobbyPanel, drawOptionsPanel, drawCardPanel, 
+                          battlePanel, selectionPanel, rankingPanel};
+        
+        for (JPanel panel : panels) {
+            if (panel != null) {
+                SwingUtilities.updateComponentTreeUI(panel);
+                panel.invalidate();
+                panel.validate();
+                panel.repaint();
+            }
+        }
+    }
+    
+    /**
+     * 刷新當前顯示的面板，立即應用主題變更
+     */
+    private void refreshCurrentPanel() {
+        // 強制更新當前面板的所有組件
+        switch (currentPanelName) {
+            case "Login":
+                // 重新初始化登入面板以應用新主題
+                loginPanel.removeAll();
+                initializeLoginPanel();
+                SwingUtilities.updateComponentTreeUI(loginPanel);
+                break;
+            case "Lobby":
+                // 重新初始化大廳面板以應用新主題
+                lobbyPanel.removeAll();
+                initializeLobbyPanel();
+                SwingUtilities.updateComponentTreeUI(lobbyPanel);
+                break;
+            case "DrawOptions":
+                // 重新初始化抽卡選項面板以應用新主題
+                drawOptionsPanel.removeAll();
+                initializeDrawOptionsPanel();
+                SwingUtilities.updateComponentTreeUI(drawOptionsPanel);
+                break;
+            case "DrawCard":
+                // 重新顯示抽卡結果面板以應用新主題
+                showDrawCardPanel();
+                SwingUtilities.updateComponentTreeUI(drawCardPanel);
+                break;
+            case "SelectBattleCards":
+                // 重新顯示卡片選擇面板以應用新主題
+                showSelectionPanel();
+                SwingUtilities.updateComponentTreeUI(selectionPanel);
+                break;
+            case "Battle":
+                // 重新初始化戰鬥面板以應用新主題
+                battlePanel.removeAll();
+                initializeBattlePanel();
+                SwingUtilities.updateComponentTreeUI(battlePanel);
+                break;
+            case "Ranking":
+                // 重新初始化排行榜面板以應用新主題
+                rankingPanel.removeAll();
+                initializeRankingPanel();
+                SwingUtilities.updateComponentTreeUI(rankingPanel);
+                break;
+        }
+        
+        // 強制重新驗證和重繪主面板
+        mainPanel.revalidate();
+        mainPanel.repaint();
+        
+        // 使用 SwingUtilities.invokeLater 確保在 EDT 中執行最終的更新
+        SwingUtilities.invokeLater(() -> {
+            // 再次強制更新整個窗口
+            repaintAllComponents(this);
+            
+            // 強制重新繪製窗口
+            this.revalidate();
+            this.repaint();
+        });
     }
       /**
      * 更新主題菜單中的選擇狀態
